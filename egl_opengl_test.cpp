@@ -38,6 +38,7 @@
  * EGL headers.
  */
 #include <EGL/egl.h>
+#include <EGL/eglext.h>
 
 /*
  * OpenGL headers.
@@ -68,6 +69,36 @@ void assertEGLError(const std::string& msg) {
 	}
 }
 
+static EGLDisplay displayForDevice(EGLDeviceEXT device)
+{
+    PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayExt = reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(eglGetProcAddress("eglGetPlatformDisplayEXT"));
+    EGLint attribs[] = { EGL_NONE };
+    EGLDisplay display = eglGetPlatformDisplayExt(EGL_PLATFORM_DEVICE_EXT, device, attribs);
+    return display;
+}
+
+static EGLDisplay getDevice()
+{
+    PFNEGLQUERYDEVICESEXTPROC eglQueryDevicesEXT = reinterpret_cast<PFNEGLQUERYDEVICESEXTPROC>(eglGetProcAddress("eglQueryDevicesEXT"));
+    EGLDeviceEXT devices[32];
+    EGLint num_devices;
+    if (!eglQueryDevicesEXT(32, devices, &num_devices)) {
+	    std::cout << "Failed to query devices." << std::endl << std::endl;
+        return EGL_NO_DISPLAY;
+    }
+    if (num_devices == 0) {
+	    std::cout << "Found no devices." << std::endl << std::endl;
+        return EGL_NO_DISPLAY;
+    }
+
+    EGLDisplay display = displayForDevice(devices[0]);
+    if (display == EGL_NO_DISPLAY) {
+	    std::cout << "  No attached display." << std::endl;
+    }
+
+    return display;
+}
+
 int main() {
 	/*
 	 * EGL initialization and OpenGL context creation.
@@ -77,14 +108,20 @@ int main() {
 	EGLContext context;
 	EGLSurface surface;
 	EGLint num_config;
+    const EGLint config_attribute_list[] =
+        {
+            EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+            EGL_NONE
+        };
 
-	display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+	display = getDevice();
 	assertEGLError("eglGetDisplay");
 	
 	eglInitialize(display, nullptr, nullptr);
 	assertEGLError("eglInitialize");
 
-	eglChooseConfig(display, nullptr, &config, 1, &num_config);
+	eglChooseConfig(display, config_attribute_list, &config, 1, &num_config);
 	assertEGLError("eglChooseConfig");
 	
 	eglBindAPI(EGL_OPENGL_API);
